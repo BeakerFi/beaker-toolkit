@@ -78,16 +78,10 @@ macro_rules! none {
 
 #[macro_export]
 macro_rules! global_package_advanced {
-    ($name:ident, $code_path:expr, $package_name:expr, $release_path:expr) => {
+    ($name:ident, $release_path:expr, $package_name:expr, $code_path:expr) => {
         lazy_static! {
             static ref $name: (Vec<u8>, PackageDefinition) = {
                 let package_test_dir = PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap();
-
-                let package_name = if $package_name == "" {
-                    env!("CARGO_PKG_NAME")
-                } else {
-                    $package_name
-                };
 
                 let package_dir = package_test_dir.join($code_path);
 
@@ -99,9 +93,15 @@ macro_rules! global_package_advanced {
                     .join("wasm32-unknown-unknown")
                     .join("release");
 
-                let wasm_path = release_dir.join(format!("{}.wasm", $package_name));
+                let package_name = if $package_name == "" {
+                    env!("CARGO_PKG_NAME")
+                } else {
+                    $package_name
+                };
 
-                let definition_path = release_dir.join(format!("{}.rpd", $package_name));
+                let wasm_path = release_dir.join(format!("{}.wasm", package_name));
+
+                let definition_path = release_dir.join(format!("{}.rpd", package_name));
 
                 let code_modification_time =
                     get_last_modified_time(&code_dir).unwrap_or(SystemTime::UNIX_EPOCH);
@@ -144,11 +144,11 @@ macro_rules! global_package_advanced {
         global_package_advanced!($name, "", "", "");
     };
 
-    ($name:ident, $code_path:expr) => {
-        global_package_advanced!($name, $code_path, "", $code_path);
+    ($name:ident, $release_path:expr) => {
+        global_package_advanced!($name, $release_path, "", "");
     };
 
-    ($name:ident, $code_path:expr, $package_name:expr) => {
-        global_package_advanced!($name, $code_path, $package_name, $code_path);
+    ($name:ident, $release_path:expr, $package_name:expr) => {
+        global_package_advanced!($name, $release_path, $package_name, "");
     };
 }
