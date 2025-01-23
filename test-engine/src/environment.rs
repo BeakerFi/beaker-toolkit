@@ -1,6 +1,7 @@
 use crate::internal_prelude::*;
 use crate::references::{ReferenceName, ResourceReference};
 use crate::test_engine::TestEngine;
+use std::vec::Vec;
 
 pub trait ToEncode {
     fn to_encode<'a>(
@@ -105,22 +106,24 @@ impl<R: ResourceReference + Clone> ToEncode for Fungible<R> {
                     "withdraw",
                     manifest_args!(resource_address, amount),
                 );
-                let (manifest_builder, bucket) =
-                    manifest_builder.add_instruction_advanced(InstructionV1::TakeFromWorktop {
+                let (manifest_builder, bucket) = manifest_builder.add_instruction_advanced(
+                    InstructionV1::TakeFromWorktop(TakeFromWorktop {
                         resource_address,
                         amount,
-                    });
+                    }),
+                );
                 (manifest_builder, Box::new(bucket.new_bucket.unwrap()))
             }
             Fungible::FromWorkTop(resource, amount) => {
                 let resource_address = resource.address(test_engine);
                 let amount = *amount;
 
-                let (manifest_builder, bucket) =
-                    manifest_builder.add_instruction_advanced(InstructionV1::TakeFromWorktop {
+                let (manifest_builder, bucket) = manifest_builder.add_instruction_advanced(
+                    InstructionV1::TakeFromWorktop(TakeFromWorktop {
                         resource_address,
                         amount,
-                    });
+                    }),
+                );
                 (manifest_builder, Box::new(bucket.new_bucket.unwrap()))
             }
             Fungible::AllFromAccount(resource) => {
@@ -132,20 +135,20 @@ impl<R: ResourceReference + Clone> ToEncode for Fungible<R> {
                     "withdraw",
                     manifest_args!(resource_address, amount_owned),
                 );
-                let (manifest_builder, bucket) =
-                    manifest_builder.add_instruction_advanced(InstructionV1::TakeFromWorktop {
+                let (manifest_builder, bucket) = manifest_builder.add_instruction_advanced(
+                    InstructionV1::TakeFromWorktop(TakeFromWorktop {
                         resource_address,
                         amount: amount_owned,
-                    });
+                    }),
+                );
                 (manifest_builder, Box::new(bucket.new_bucket.unwrap()))
             }
             Fungible::AllFromWorktop(resource) => {
                 let resource_address = resource.address(test_engine);
 
-                let (manifest_builder, bucket) =
-                    manifest_builder.add_instruction_advanced(InstructionV1::TakeAllFromWorktop {
-                        resource_address,
-                    });
+                let (manifest_builder, bucket) = manifest_builder.add_instruction_advanced(
+                    InstructionV1::TakeAllFromWorktop(TakeAllFromWorktop { resource_address }),
+                );
                 (manifest_builder, Box::new(bucket.new_bucket.unwrap()))
             }
         }
@@ -195,20 +198,20 @@ impl<R: ResourceReference + Clone> ToEncode for NonFungible<R> {
                     manifest_args!(resource_address, ids.clone()),
                 );
                 let (manifest_builder, bucket) = manifest_builder.add_instruction_advanced(
-                    InstructionV1::TakeNonFungiblesFromWorktop {
+                    InstructionV1::TakeNonFungiblesFromWorktop(TakeNonFungiblesFromWorktop {
                         resource_address,
                         ids: ids.clone(),
-                    },
+                    }),
                 );
                 (manifest_builder, Box::new(bucket.new_bucket.unwrap()))
             }
             NonFungible::FromWorktop(resource, ids) => {
                 let resource_address = resource.address(test_engine);
                 let (manifest_builder, bucket) = manifest_builder.add_instruction_advanced(
-                    InstructionV1::TakeNonFungiblesFromWorktop {
+                    InstructionV1::TakeNonFungiblesFromWorktop(TakeNonFungiblesFromWorktop {
                         resource_address,
                         ids: ids.clone(),
-                    },
+                    }),
                 );
                 (manifest_builder, Box::new(bucket.new_bucket.unwrap()))
             }
@@ -223,20 +226,19 @@ impl<R: ResourceReference + Clone> ToEncode for NonFungible<R> {
                     manifest_args!(resource_address, ids_owned.clone()),
                 );
                 let (manifest_builder, bucket) = manifest_builder.add_instruction_advanced(
-                    InstructionV1::TakeNonFungiblesFromWorktop {
+                    InstructionV1::TakeNonFungiblesFromWorktop(TakeNonFungiblesFromWorktop {
                         resource_address,
                         ids: ids_owned,
-                    },
+                    }),
                 );
                 (manifest_builder, Box::new(bucket.new_bucket.unwrap()))
             }
             NonFungible::AllFromWorktop(resource) => {
                 let resource_address = resource.address(test_engine);
 
-                let (manifest_builder, bucket) =
-                    manifest_builder.add_instruction_advanced(InstructionV1::TakeAllFromWorktop {
-                        resource_address,
-                    });
+                let (manifest_builder, bucket) = manifest_builder.add_instruction_advanced(
+                    InstructionV1::TakeAllFromWorktop(TakeAllFromWorktop { resource_address }),
+                );
                 (manifest_builder, Box::new(bucket.new_bucket.unwrap()))
             }
         }
@@ -287,8 +289,8 @@ impl<R: ResourceReference + Clone> ToEncode for ProofOf<R> {
                     manifest_args!(resource_address, amount),
                 );
 
-                let (manifest_builder, proof) =
-                    manifest_builder.add_instruction_advanced(InstructionV1::PopFromAuthZone);
+                let (manifest_builder, proof) = manifest_builder
+                    .add_instruction_advanced(InstructionV1::PopFromAuthZone(PopFromAuthZone));
 
                 (manifest_builder, Box::new(proof.new_proof.unwrap()))
             }
@@ -297,10 +299,12 @@ impl<R: ResourceReference + Clone> ToEncode for ProofOf<R> {
                 let amount = *amount;
 
                 let (manifest_builder, proof) = manifest_builder.add_instruction_advanced(
-                    InstructionV1::CreateProofFromAuthZoneOfAmount {
-                        resource_address,
-                        amount,
-                    },
+                    InstructionV1::CreateProofFromAuthZoneOfAmount(
+                        CreateProofFromAuthZoneOfAmount {
+                            resource_address,
+                            amount,
+                        },
+                    ),
                 );
                 (manifest_builder, Box::new(proof.new_proof.unwrap()))
             }
@@ -312,18 +316,20 @@ impl<R: ResourceReference + Clone> ToEncode for ProofOf<R> {
                     manifest_args!(resource_address, ids.clone()),
                 );
 
-                let (manifest_builder, proof) =
-                    manifest_builder.add_instruction_advanced(InstructionV1::PopFromAuthZone);
+                let (manifest_builder, proof) = manifest_builder
+                    .add_instruction_advanced(InstructionV1::PopFromAuthZone(PopFromAuthZone));
 
                 (manifest_builder, Box::new(proof.new_proof.unwrap()))
             }
             ProofOf::NonFungibleFromAuthZone(resource, ids) => {
                 let resource_address = resource.address(test_engine);
                 let (manifest_builder, proof) = manifest_builder.add_instruction_advanced(
-                    InstructionV1::CreateProofFromAuthZoneOfNonFungibles {
-                        resource_address,
-                        ids: ids.clone(),
-                    },
+                    InstructionV1::CreateProofFromAuthZoneOfNonFungibles(
+                        CreateProofFromAuthZoneOfNonFungibles {
+                            resource_address,
+                            ids: ids.clone(),
+                        },
+                    ),
                 );
                 (manifest_builder, Box::new(proof.new_proof.unwrap()))
             }

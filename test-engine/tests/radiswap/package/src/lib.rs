@@ -36,9 +36,9 @@ mod radiswap {
 
         pub fn add_liquidity(
             &mut self,
-            resource1: Bucket,
-            resource2: Bucket,
-        ) -> (Bucket, Option<Bucket>) {
+            resource1: FungibleBucket,
+            resource2: FungibleBucket,
+        ) -> (FungibleBucket, Option<FungibleBucket>) {
             // All the checks for correctness of buckets and everything else is handled by the pool
             // component! Just pass it the resources and it will either return the pool units back
             // if it succeeds or abort on failure.
@@ -49,17 +49,20 @@ mod radiswap {
         /// holders of the pool units directly from the pool. In this case this is just a nice proxy
         /// so that users are only interacting with one component and do not need to know about the
         /// address of Radiswap and the address of the Radiswap pool.
-        pub fn remove_liquidity(&mut self, pool_units: Bucket) -> (Bucket, Bucket) {
+        pub fn remove_liquidity(
+            &mut self,
+            pool_units: FungibleBucket,
+        ) -> (FungibleBucket, FungibleBucket) {
             self.pool_component.redeem(pool_units)
         }
 
-        pub fn swap(&mut self, input_bucket: Bucket) -> Bucket {
+        pub fn swap(&mut self, input_bucket: FungibleBucket) -> FungibleBucket {
             let mut reserves = self.vault_reserves();
 
             let input_amount = input_bucket.amount();
 
             let input_reserves = reserves
-                .remove(&input_bucket.resource_address())
+                .shift_remove(&input_bucket.resource_address())
                 .expect("Resource does not belong to the pool");
             let (output_resource_address, output_reserves) = reserves.into_iter().next().unwrap();
 
@@ -80,11 +83,15 @@ mod radiswap {
             self.pool_component.get_vault_amounts()
         }
 
-        fn deposit(&mut self, bucket: Bucket) {
+        fn deposit(&mut self, bucket: FungibleBucket) {
             self.pool_component.protected_deposit(bucket)
         }
 
-        fn withdraw(&mut self, resource_address: ResourceAddress, amount: Decimal) -> Bucket {
+        fn withdraw(
+            &mut self,
+            resource_address: ResourceAddress,
+            amount: Decimal,
+        ) -> FungibleBucket {
             self.pool_component.protected_withdraw(
                 resource_address,
                 amount,

@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sbor = "1.2.0"
-scrypto = "1.2.0"
+scrypto = "1.3.0"
 
 [profile.release]
 opt-level = 'z'        # Optimize for size.

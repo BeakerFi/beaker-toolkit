@@ -1,6 +1,3 @@
-use std::collections::BTreeSet;
-use std::vec::Vec;
-
 use crate::account::Account;
 use crate::environment::{EnvironmentEncode, Fungible, NonFungible};
 use crate::internal_prelude::*;
@@ -8,10 +5,12 @@ use crate::method_call::SimpleMethodCaller;
 use crate::references::{ComponentReference, GlobalReference, ReferenceName, ResourceReference};
 use crate::test_engine::TestEngine;
 use crate::to_id::ToId;
+use std::collections::BTreeSet;
+use std::vec::Vec;
 
 struct TransactionManifestData {
     transaction_manifest: TransactionManifestV1,
-    object_names: ManifestObjectNames,
+    // object_names: KnownManifestObjectNames,
 }
 
 pub struct CallBuilder<'a> {
@@ -103,7 +102,7 @@ impl<'a> CallBuilder<'a> {
     /// Executes the call.
     pub fn execute(mut self) -> TransactionReceipt {
         self.manifest_data = Some(TransactionManifestData {
-            object_names: self.manifest_builder.object_names().clone(),
+            // object_names: self.manifest_builder.object_names().clone(),
             transaction_manifest: self.manifest_builder.build(),
         });
 
@@ -117,7 +116,7 @@ impl<'a> CallBuilder<'a> {
         let receipt = self.test_engine.execute_call(
             self.manifest_data.unwrap().transaction_manifest,
             self.with_trace,
-            vec![self.caller.proof()],
+            btreeset![self.caller.proof()],
             true,
         );
 
@@ -294,7 +293,7 @@ impl<'a> CallBuilder<'a> {
 
     pub(crate) fn call_method_internal(
         mut self,
-        component: impl ResolvableGlobalAddress,
+        component: impl ReferencedManifestGlobalAddress,
         method_name: &str,
         args: Vec<Box<dyn EnvironmentEncode>>,
     ) -> Self {
@@ -328,7 +327,7 @@ impl<'a> CallBuilder<'a> {
 
     pub(crate) fn execute_no_update(mut self) -> TransactionReceipt {
         self.manifest_data = Some(TransactionManifestData {
-            object_names: self.manifest_builder.object_names().clone(),
+            // object_names: self.manifest_builder.object_names().clone(),
             transaction_manifest: self.manifest_builder.build(),
         });
 
@@ -342,7 +341,7 @@ impl<'a> CallBuilder<'a> {
         let receipt = self.test_engine.execute_call(
             self.manifest_data.unwrap().transaction_manifest,
             self.with_trace,
-            vec![self.caller.proof()],
+            btreeset![self.caller.proof()],
             false,
         );
 
@@ -406,22 +405,24 @@ impl<'a> CallBuilder<'a> {
 
         manifest.instructions.insert(
             0,
-            InstructionV1::CallMethod {
+            InstructionV1::CallMethod(CallMethod {
                 address: DynamicGlobalAddress::from(self.fee_payer),
                 method_name: "lock_fee".to_string(),
-                args: manifest_args!(self.fee_locked).resolve(),
-            },
+                args: manifest_args!(self.fee_locked).into(),
+            }),
         );
     }
 
     fn write_deposit(&mut self) {
         let manifest = &mut self.manifest_data.as_mut().unwrap().transaction_manifest;
 
-        manifest.instructions.push(InstructionV1::CallMethod {
-            address: DynamicGlobalAddress::from(*self.caller.address()),
-            method_name: "deposit_batch".to_string(),
-            args: manifest_args!(ManifestExpression::EntireWorktop).resolve(),
-        });
+        manifest
+            .instructions
+            .push(InstructionV1::CallMethod(CallMethod {
+                address: DynamicGlobalAddress::from(*self.caller.address()),
+                method_name: "deposit_batch".to_string(),
+                args: manifest_args!(ManifestExpression::EntireWorktop).into(),
+            }));
     }
     fn write_badge(&mut self) {
         let manifest = &mut self.manifest_data.as_mut().unwrap().transaction_manifest;
@@ -429,34 +430,34 @@ impl<'a> CallBuilder<'a> {
             if badge.is_fungible() {
                 manifest.instructions.insert(
                     1,
-                    InstructionV1::CallMethod {
+                    InstructionV1::CallMethod(CallMethod {
                         address: DynamicGlobalAddress::from(*self.caller.address()),
                         method_name: "create_proof_of_amount".to_string(),
-                        args: manifest_args!(badge, Decimal::one()).resolve(),
-                    },
+                        args: manifest_args!(badge, Decimal::one()).into(),
+                    }),
                 )
             } else {
                 manifest.instructions.insert(
                     1,
-                    InstructionV1::CallMethod {
+                    InstructionV1::CallMethod(CallMethod {
                         address: DynamicGlobalAddress::from(*self.caller.address()),
                         method_name: "create_proof_of_non_fungibles".to_string(),
-                        args: manifest_args!(badge, opt_ids.clone().unwrap()).resolve(),
-                    },
+                        args: manifest_args!(badge, opt_ids.clone().unwrap()).into(),
+                    }),
                 );
             }
         }
     }
 
     fn output_manifest(&mut self) {
-        let manifest = self.manifest_data.as_mut().unwrap();
-
+        let manifest = &self.manifest_data.as_mut().unwrap().transaction_manifest;
+        // let a = manifest.transaction_manifest.clone();
         match &self.output_manifest {
             None => {}
             Some((path, name)) => {
                 match dump_manifest_to_file_system(
-                    manifest.object_names.clone(),
-                    &manifest.transaction_manifest,
+                    manifest, //.object_names.clone(),
+                    // &manifest.transaction_manifest,
                     path,
                     Some(name),
                     &self.test_engine.network(),

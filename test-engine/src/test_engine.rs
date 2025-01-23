@@ -1,15 +1,14 @@
-use std::collections::hash_map::Entry;
-use std::path::Path;
-
 use crate::account::Account;
 use crate::call_builder::CallBuilder;
 use crate::engine_interface::EngineInterface;
 use crate::environment::EnvironmentEncode;
-use crate::internal_prelude::*;
 use crate::method_call::{ComplexMethodCaller, SimpleMethodCaller};
 use crate::receipt_traits::Outcome;
 use crate::references::{ComponentReference, GlobalReference, ReferenceName, ResourceReference};
 use crate::to_id::ToId;
+use scrypto_test::prelude::*;
+use std::collections::hash_map::Entry;
+use std::path::Path;
 
 pub struct TestEngineOptions {
     pub quiet: bool,
@@ -61,7 +60,7 @@ impl TestEngine {
         Self::_new(EngineInterface::new())
     }
 
-    pub fn new_with_custom_genesis(genesis: CustomGenesis) -> Self {
+    pub fn new_with_custom_genesis(genesis: BabylonSettings) -> Self {
         Self::_new(EngineInterface::new_with_custom_genesis(genesis))
     }
 
@@ -769,7 +768,7 @@ impl TestEngine {
         &mut self,
         manifest: TransactionManifestV1,
         with_trace: bool,
-        initial_proofs: Vec<NonFungibleGlobalId>,
+        initial_proofs: BTreeSet<NonFungibleGlobalId>,
         with_update: bool,
     ) -> TransactionReceipt {
         let receipt = self
@@ -858,7 +857,7 @@ impl TestEngine {
 
             self.update_resources_from_result(commit);
         } else if let TransactionResult::Reject(reject) = &receipt.result {
-            panic!("{}", reject.reason);
+            panic!("{:?}", reject.reason);
         }
 
         receipt
@@ -875,7 +874,7 @@ impl TestEngine {
             }
             TransactionResult::Reject(reject) => {
                 panic!(
-                    "Could not publish package {}. Transaction was rejected with error: {}",
+                    "Could not publish package {}. Transaction was rejected with error: {:?}",
                     name.format(),
                     reject.reason
                 );
