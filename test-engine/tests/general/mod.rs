@@ -38,27 +38,30 @@ fn test_transfer() {
 #[test]
 fn test_bug() {
     let mut simulator = LedgerSimulatorBuilder::new()
-        .with_custom_genesis(CustomGenesis::default(
-            Epoch::of(1),
-            CustomGenesis::default_consensus_manager_config(),
+        .with_custom_genesis(BabylonSettings::test_default(
+            // Epoch::of(1),
+            // BabylonSettings::default_consensus_manager_config(),
         ))
         .without_kernel_trace()
         .build();
 
-    let (pubkey, privkey, address) = simulator.new_account(false);
+    let (pubkey, _privkey, address) = simulator.new_account(false);
 
     let manifest_builder = ManifestBuilder::new().lock_fee_from_faucet().call_method(
         address,
         "create_proof_of_amount",
         (XRD, dec!(100)),
     );
-    let (manifest_builder, proof) =
-        manifest_builder.add_instruction_advanced(InstructionV1::CreateProofFromAuthZoneOfAmount {
+    let (manifest_builder, _proof) = manifest_builder.add_instruction_advanced(
+        InstructionV1::CreateProofFromAuthZoneOfAmount(CreateProofFromAuthZoneOfAmount {
             resource_address: XRD,
             amount: dec!(100),
-        });
+        }),
+    );
 
-    let transaction = manifest_builder.deposit_batch(address).build();
+    let transaction = manifest_builder
+        .deposit_batch(address, ManifestExpression::EntireWorktop)
+        .build();
 
     simulator
         .execute_manifest(

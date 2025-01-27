@@ -1,5 +1,6 @@
 use crate::account::Account;
 use crate::internal_prelude::*;
+use radix_transactions::manifest::*;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -10,10 +11,7 @@ pub struct EngineInterface {
 impl EngineInterface {
     pub fn new() -> Self {
         let test_runner_builder = LedgerSimulatorBuilder::new()
-            .with_custom_genesis(CustomGenesis::default(
-                Epoch::of(1),
-                CustomGenesis::default_consensus_manager_config(),
-            ))
+            .with_custom_genesis(BabylonSettings::test_default())
             .without_kernel_trace()
             .build();
 
@@ -22,7 +20,7 @@ impl EngineInterface {
         }
     }
 
-    pub fn new_with_custom_genesis(genesis: CustomGenesis) -> Self {
+    pub fn new_with_custom_genesis(genesis: BabylonSettings) -> Self {
         let test_runner_builder = LedgerSimulatorBuilder::new()
             .with_custom_genesis(genesis)
             .without_kernel_trace()
@@ -64,16 +62,15 @@ impl EngineInterface {
         &mut self,
         manifest: TransactionManifestV1,
         with_trace: bool,
-        initial_proofs: Vec<NonFungibleGlobalId>,
+        initial_proofs: BTreeSet<NonFungibleGlobalId>,
     ) -> TransactionReceipt {
         let nonce = self.simulator.next_transaction_nonce();
         let exec_config = ExecutionConfig::for_test_transaction().with_kernel_trace(with_trace);
 
         self.simulator.execute_transaction(
-            TestTransaction::new_from_nonce(manifest, nonce)
-                .prepare()
-                .expect("expected transaction to be preparable")
-                .get_executable(initial_proofs.into_iter().collect()),
+            TestTransaction::new_v1_from_nonce(manifest, nonce, initial_proofs)
+                .prepare(&PreparationSettings::babylon())
+                .expect("expected transaction to be preparable"),
             exec_config,
         )
     }
@@ -146,7 +143,7 @@ impl EngineInterface {
                 None::<Vec<(NonFungibleLocalId, T)>>,
             )
             .build();
-        let receipt = self.execute_manifest(manifest, false, vec![]);
+        let receipt = self.execute_manifest(manifest, false, btreeset![]);
         receipt.expect_commit(true).new_resource_addresses()[0]
     }
 
@@ -163,7 +160,7 @@ impl EngineInterface {
             .try_deposit_entire_worktop_or_abort(account, None)
             .build();
 
-        self.execute_manifest(manifest, false, vec![]);
+        self.execute_manifest(manifest, false, btreeset![]);
     }
 
     pub fn mint_ruid_non_fungible<T: ManifestEncode>(
@@ -178,7 +175,7 @@ impl EngineInterface {
             .try_deposit_entire_worktop_or_abort(account, None)
             .build();
 
-        self.execute_manifest(manifest, false, vec![]);
+        self.execute_manifest(manifest, false, btreeset![]);
     }
 
     pub fn set_epoch(&mut self, epoch: Epoch) {
@@ -223,36 +220,41 @@ impl EngineInterface {
         );
 
         let receipt = self.simulator.execute_system_transaction(
-            vec![
-                InstructionV1::CallFunction {
-                    package_address: RESOURCE_PACKAGE.into(),
-                    blueprint_name: FUNGIBLE_RESOURCE_MANAGER_BLUEPRINT.to_string(),
-                    function_name: FUNGIBLE_RESOURCE_MANAGER_CREATE_WITH_INITIAL_SUPPLY_IDENT
-                        .to_string(),
-                    args: to_manifest_value_and_unwrap!(
-                        &FungibleResourceManagerCreateWithInitialSupplyManifestInput {
-                            owner_role: OwnerRole::None,
-                            divisibility: 18,
-                            track_total_supply: false,
-                            metadata: Default::default(),
-                            resource_roles: FungibleResourceRoles::default(),
-                            initial_supply,
-                            address_reservation: Some(ManifestAddressReservation(0)),
-                        }
-                    ),
-                },
-                InstructionV1::CallMethod {
-                    address: DynamicGlobalAddress::Static(GlobalAddress::new_or_panic(
-                        (*default_account.address()).into(),
-                    )),
-                    method_name: "deposit_batch".to_string(),
-                    args: manifest_args!(ManifestExpression::EntireWorktop).into(),
-                },
-            ],
+            SystemTransactionManifestV1 {
+                instructions: vec![
+                    InstructionV1::CallFunction(CallFunction {
+                        package_address: RESOURCE_PACKAGE.into(),
+                        blueprint_name: FUNGIBLE_RESOURCE_MANAGER_BLUEPRINT.to_string(),
+                        function_name: FUNGIBLE_RESOURCE_MANAGER_CREATE_WITH_INITIAL_SUPPLY_IDENT
+                            .to_string(),
+                        args: to_manifest_value_and_unwrap!(
+                            &FungibleResourceManagerCreateWithInitialSupplyManifestInput {
+                                owner_role: OwnerRole::None,
+                                divisibility: 18,
+                                track_total_supply: false,
+                                metadata: Default::default(),
+                                resource_roles: FungibleResourceRoles::default(),
+                                initial_supply,
+                                address_reservation: Some(ManifestAddressReservation(0)),
+                            }
+                        ),
+                    }),
+                    InstructionV1::CallMethod(CallMethod {
+                        address: DynamicGlobalAddress::Static(GlobalAddress::new_or_panic(
+                            (*default_account.address()).into(),
+                        )),
+                        method_name: "deposit_batch".to_string(),
+                        args: manifest_args!(ManifestExpression::EntireWorktop).into(),
+                    }),
+                ],
+                preallocated_addresses: pre_allocated_addresses,
+                blobs: indexmap!(),
+                object_names: ManifestObjectNames::Unknown,
+            },
+            // pre_allocated_addresses,
             btreeset!(NonFungibleGlobalId::from_public_key(
                 &default_account.public_key()
             )),
-            pre_allocated_addresses,
         );
 
         receipt.expect_commit(true).new_resource_addresses()[0]

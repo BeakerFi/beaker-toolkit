@@ -41,7 +41,7 @@ mod english_auction {
         /// component and with a proof of the amount of funds owed to them. If they wish to then cancel their bid or
         /// terminate it, they must present their bidder's badge to the appropriate methods on the an EnglishAuction
         /// component.
-        bidders_badge: ResourceManager,
+        bidders_badge: NonFungibleResourceManager,
 
         /// This blueprint accepts XRD as well as non-XRD payments. This variable here is the resource address of the
         /// fungible token that will be used for payments to the component.
@@ -112,7 +112,10 @@ mod english_auction {
                 "[Instantiation]: Only payments of fungible resources are accepted."
             );
             assert!(
-                Runtime::current_epoch().after(relative_ending_epoch).unwrap() > Runtime::current_epoch(),
+                Runtime::current_epoch()
+                    .after(relative_ending_epoch)
+                    .unwrap()
+                    > Runtime::current_epoch(),
                 "[Instantiation]: The ending epoch has already passed."
             );
 
@@ -149,7 +152,7 @@ mod english_auction {
                 Runtime::allocate_component_address(EnglishAuction::blueprint_id());
 
             // Creating the bidder's badge which will be used to track the bidder's information and bids.
-            let bidder_badge_resource_address: ResourceManager =
+            let bidder_badge_resource_address =
                 ResourceBuilder::new_ruid_non_fungible::<BidderBadge>(OwnerRole::None)
                     .metadata(metadata!(
                         init {
@@ -186,15 +189,17 @@ mod english_auction {
                 payment_vault: Vault::new(accepted_payment_token),
                 bidders_badge: bidder_badge_resource_address,
                 accepted_payment_token,
-                ending_epoch: Runtime::current_epoch().after(relative_ending_epoch).unwrap(),
+                ending_epoch: Runtime::current_epoch()
+                    .after(relative_ending_epoch)
+                    .unwrap(),
                 state: AuctionState::Open,
             }
-                .instantiate()
-                .prepare_to_globalize(OwnerRole::Updatable(rule!(require(
+            .instantiate()
+            .prepare_to_globalize(OwnerRole::Updatable(rule!(require(
                 ownership_badge.resource_address()
             ))))
-                .with_address(address_reservation)
-                .globalize();
+            .with_address(address_reservation)
+            .globalize();
 
             return (english_auction, ownership_badge);
         }
@@ -296,7 +301,7 @@ mod english_auction {
         /// # Returns:
         ///
         /// * `Bucket` - A bucket of the bidder's badge.
-        pub fn bid(&mut self, funds: Bucket) -> Bucket {
+        pub fn bid(&mut self, funds: Bucket) -> NonFungibleBucket {
             // Mandatory call to ensure that the `ensure_auction_settlement` method to ensure that if the conditions are
             // met, that the auction will proceed to the next stage/state.
             self.ensure_auction_settlement();
@@ -311,13 +316,13 @@ mod english_auction {
 
             // Issuing a bidder's NFT to this bidder with information on the amount that they're bidding
 
-            let bidders_badge: Bucket = self.bidders_badge.mint_ruid_non_fungible(BidderBadge {
-                bid_amount: funds.amount(),
-                is_winner: false,
-            });
+            let bidders_badge: NonFungibleBucket =
+                self.bidders_badge.mint_ruid_non_fungible(BidderBadge {
+                    bid_amount: funds.amount(),
+                    is_winner: false,
+                });
 
-            let non_fungible_local_id: NonFungibleLocalId =
-                bidders_badge.as_non_fungible().non_fungible_local_id();
+            let non_fungible_local_id: NonFungibleLocalId = bidders_badge.non_fungible_local_id();
 
             // Taking the bidder's funds and depositing them into a newly created vault where their funds will now live
             self.bid_vaults

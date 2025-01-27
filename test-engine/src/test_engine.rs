@@ -1,15 +1,18 @@
-use std::collections::hash_map::Entry;
-use std::path::Path;
-
 use crate::account::Account;
 use crate::call_builder::CallBuilder;
 use crate::engine_interface::EngineInterface;
 use crate::environment::EnvironmentEncode;
-use crate::internal_prelude::*;
 use crate::method_call::{ComplexMethodCaller, SimpleMethodCaller};
 use crate::receipt_traits::Outcome;
 use crate::references::{ComponentReference, GlobalReference, ReferenceName, ResourceReference};
 use crate::to_id::ToId;
+use scrypto_test::prelude::*;
+use std::collections::hash_map::Entry;
+use std::path::Path;
+
+pub struct TestEngineOptions {
+    pub quiet: bool,
+}
 
 pub struct TestEngine {
     engine_interface: EngineInterface,
@@ -20,6 +23,8 @@ pub struct TestEngine {
     components: HashMap<String, ComponentAddress>,
     current_component: Option<String>,
     resources: HashMap<String, ResourceAddress>,
+    internal_addresses: HashMap<String, InternalAddress>,
+    options: TestEngineOptions,
 }
 
 impl TestEngine {
@@ -46,6 +51,8 @@ impl TestEngine {
             components,
             current_component: None,
             resources,
+            internal_addresses: HashMap::new(),
+            options: TestEngineOptions { quiet: false },
         }
     }
 
@@ -53,7 +60,7 @@ impl TestEngine {
         Self::_new(EngineInterface::new())
     }
 
-    pub fn new_with_custom_genesis(genesis: CustomGenesis) -> Self {
+    pub fn new_with_custom_genesis(genesis: BabylonSettings) -> Self {
         Self::_new(EngineInterface::new_with_custom_genesis(genesis))
     }
 
@@ -369,6 +376,41 @@ impl TestEngine {
         }
     }
 
+    /// Registers a new internal address.
+    ///
+    /// # Arguments
+    /// * `address_name`: name that will be used to reference the token.
+    /// * `internal_address`: address of the resource.
+    pub fn register_internal_address<N: ReferenceName>(
+        &mut self,
+        address_name: N,
+        internal_address: InternalAddress,
+    ) {
+        match self.internal_addresses.get(&address_name.format()) {
+            Some(_) => {
+                panic!(
+                    "Internal address with name {} already exists",
+                    address_name.format()
+                );
+            }
+            None => {
+                self.internal_addresses
+                    .insert(address_name.format(), internal_address);
+            }
+        }
+    }
+
+    /// Returns the [`InternalAddress`] of the given reference.
+    ///
+    /// # Arguments
+    /// * `name`: reference name of the internal address.
+    pub fn get_internal_address<N: ReferenceName>(&self, name: N) -> InternalAddress {
+        match self.internal_addresses.get(&name.format()) {
+            None => panic!("There is no internal address with name {}", name.format()),
+            Some(address) => *address,
+        }
+    }
+
     /// Creates a new non-fungible resource with all rules set to `AllowAll` and with  a given ID type.
     ///
     /// # Arguments
@@ -583,7 +625,7 @@ impl TestEngine {
             .execute()
     }
 
-    /// Returns the [`PackageAddress`] of the given pacresourcekage.
+    /// Returns the [`PackageAddress`] of the given package.
     ///
     /// # Arguments
     /// * `name`: reference name of the package.
@@ -702,6 +744,22 @@ impl TestEngine {
         self.engine_interface.get_kvs_entry(kv_store_id, key)
     }
 
+    /// Enable running test quietly.
+    ///
+    pub fn mute(&mut self) {
+        self.options.quiet = true;
+    }
+
+    /// Disable running test quietly.
+    ///
+    pub fn unmute(&mut self) {
+        self.options.quiet = false;
+    }
+
+    pub(crate) fn get_options(&self) -> &TestEngineOptions {
+        &self.options
+    }
+
     pub(crate) fn current_account(&self) -> &Account {
         self.accounts.get(&self.current_account).unwrap()
     }
@@ -710,7 +768,7 @@ impl TestEngine {
         &mut self,
         manifest: TransactionManifestV1,
         with_trace: bool,
-        initial_proofs: Vec<NonFungibleGlobalId>,
+        initial_proofs: BTreeSet<NonFungibleGlobalId>,
         with_update: bool,
     ) -> TransactionReceipt {
         let receipt = self
@@ -799,7 +857,7 @@ impl TestEngine {
 
             self.update_resources_from_result(commit);
         } else if let TransactionResult::Reject(reject) = &receipt.result {
-            panic!("{}", reject.reason);
+            panic!("{:?}", reject.reason);
         }
 
         receipt
@@ -816,7 +874,7 @@ impl TestEngine {
             }
             TransactionResult::Reject(reject) => {
                 panic!(
-                    "Could not publish package {}. Transaction was rejected with error: {}",
+                    "Could not publish package {}. Transaction was rejected with error: {:?}",
                     name.format(),
                     reject.reason
                 );

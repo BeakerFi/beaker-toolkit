@@ -17,7 +17,7 @@ overflow-checks = true # Panic in the case of an overflow.
 
 [workspace]
 members = [
-    "maths",
+    # "maths",
     "test-engine"
 ]
 resolver = "2"
